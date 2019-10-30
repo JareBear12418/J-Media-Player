@@ -4,7 +4,10 @@ from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer
 from PyQt5.QtMultimediaWidgets import QVideoWidget
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
-import sys, os, getpass
+import sys, os, getpass, shutil, subprocess
+
+# pip instal easygui
+import easygui
 # pip install qdarkgraystyle
 # import qdarkgraystyle
 
@@ -19,8 +22,9 @@ import imageio
 title = 'J-Media Player'
 version = 'v0.1'
 username = getpass.getuser()
-class VideoWindow(QMainWindow):
+FILEBROWSER_PATH = os.path.join(os.getenv('WINDIR'), 'explorer.exe')
 
+class VideoWindow(QMainWindow):
     def __init__(self, parent=None):
         super(VideoWindow, self).__init__(parent)
         self.setWindowTitle(title + ' ' + version) 
@@ -51,7 +55,7 @@ class VideoWindow(QMainWindow):
         # Create new action 
         downloadAction = QAction('&Download Youtube Video', self)     
         downloadAction.setStatusTip('Download youtube video')
-        downloadAction.triggered.connect(self.downloadYoutube)
+        downloadAction.triggered.connect(self.youtubeDownloadPopup)
         # Create exit action
         exitAction = QAction(QIcon('exit.png'), '&Exit', self)        
         exitAction.setShortcut('Ctrl+Q')
@@ -128,20 +132,7 @@ class VideoWindow(QMainWindow):
                     QMediaContent(QUrl.fromLocalFile(fileName)))
             self.playButton.setEnabled(True)
         self.play()
-    def downloadYoutube(self):
-        directory = 'C:/Users/{}/Videos/J-Media Player Downloads'.format(username)
-        if not os.path.exists(directory):
-            os.makedirs(directory)
-        url, okPressed = QInputDialog.getText(self, "Youtube Download Video","URL for the Youtube video:", QLineEdit.Normal, "")
-        if okPressed and url != '':
-            ydl_opts = {}
-            with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
-            # yt = YouTube(url)
-            # yt = yt.streams.filter(progressive=True, file_extension='mp4').order_by('resolution').desc().first()
-            # if not os.path.exists(directory):
-            #     os.makedirs(directory)
-            # yt.download(directory)
+
     def exitCall(self):
         sys.exit(app.exec_())
 
@@ -171,7 +162,70 @@ class VideoWindow(QMainWindow):
     def handleError(self):
         self.playButton.setEnabled(False)
         self.errorLabel.setText("Error: " + self.mediaPlayer.errorString())
+    
+    def youtubeDownloadPopup(self):
+        # self.close()
+        self.youtube_download_popup = youtube_download('Download Youtube Video')
+        self.youtube_download_popup.setFixedSize(300, 310)
+        self.youtube_download_popup.setWindowTitle('Download Youtube Video')
+        # self.youtube_download_popup.setWindowIcon(QtGui.QIcon('add.png'))
+        self.youtube_download_popup.show()
 
+class youtube_download(QDialog):
+    def __init__(self, name):
+        super().__init__()
+        self.title = name
+        # TEXT BOX START
+        self.txtURL = QLineEdit(self)
+        self.txtURL.move(10,10)
+        self.txtURL.resize(250,30)
+        # TEXT BOX END
+        # LABEL START
+        self.lblTitle = QLabel(self)
+        self.lblTitle.move(10,100)
+        self.lblTitle.resize(250,30)
+        self.lblTitle.setText("Title: ")
+        # LABEL END
+        # BUTTON START
+        self.btnDownload = QPushButton(self)
+        self.btnDownload.setText('Download')
+        self.btnDownload.move(10,60)
+        self.btnDownload.clicked.connect(self.downloadYoutube)
+        # BUTTON END
+    def downloadYoutube(self):
+        try:
+            directory = 'C:/Users/{}/Videos/J-Media Player Downloads'.format(username)
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+                
+            url = self.txtURL.text()
+            if 'https://www.youtube.com/watch?' not in url:
+                buttonReply = QMessageBox.critical(self, 'Error! :(', "{} is an invalid URL".format(url), QMessageBox.Ok, QMessageBox.Ok)
+                return
+            ydl_opts = {}
+            info_dict = youtube_dl.YoutubeDL(ydl_opts).extract_info(url, download = False)
+            video_id = info_dict.get("id", None)
+            video_title = info_dict.get('title', None)
+            self.lblTitle.setText("Title: " + str(video_title))
+            
+            with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([url])
+                
+            shutil.move(video_title + '-' + video_id + '.mp4', directory + '/' + video_title + '.mp4')
+            buttonReply = QMessageBox.information(self, 'Success! :)', "Succesfully downloaded!\nDo you want to open the file directory?", QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+            if buttonReply == QMessageBox.Yes:
+                self.explore(directory)
+        except Exception as e:
+            buttonReply = QMessageBox.critical(self, 'Error! :(', "{}".format(e), QMessageBox.Ok, QMessageBox.Ok)
+            return
+    def explore(self, path):
+        # explorer would choke on forward slashes
+        path = os.path.normpath(path)
+
+        if os.path.isdir(path):
+            subprocess.run([FILEBROWSER_PATH, path])
+        elif os.path.isfile(path):
+            subprocess.run([FILEBROWSER_PATH, '/select,', os.path.normpath(path)])
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     player = VideoWindow()
