@@ -4,12 +4,21 @@ from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer
 from PyQt5.QtMultimediaWidgets import QVideoWidget
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
-import sys
+import sys, os, getpass
 # pip install qdarkgraystyle
-import qdarkgraystyle
+# import qdarkgraystyle
+
+# pip install pytube
+from pytube import YouTube
+
+# pip install youtube-dl
+import youtube_dl
+
+import imageio
 
 title = 'J-Media Player'
-version = 'v0.01'
+version = 'v0.1'
+username = getpass.getuser()
 class VideoWindow(QMainWindow):
 
     def __init__(self, parent=None):
@@ -38,7 +47,11 @@ class VideoWindow(QMainWindow):
         openAction.setShortcut('Ctrl+O')
         openAction.setStatusTip('Open movie')
         openAction.triggered.connect(self.openFile)
-
+        
+        # Create new action 
+        downloadAction = QAction('&Download Youtube Video', self)     
+        downloadAction.setStatusTip('Download youtube video')
+        downloadAction.triggered.connect(self.downloadYoutube)
         # Create exit action
         exitAction = QAction(QIcon('exit.png'), '&Exit', self)        
         exitAction.setShortcut('Ctrl+Q')
@@ -50,6 +63,7 @@ class VideoWindow(QMainWindow):
         fileMenu = menuBar.addMenu('&File')
         #fileMenu.addAction(newAction)
         fileMenu.addAction(openAction)
+        fileMenu.addAction(downloadAction)
         fileMenu.addAction(exitAction)
 
         # Create a widget for window contents
@@ -77,36 +91,57 @@ class VideoWindow(QMainWindow):
         self.mediaPlayer.error.connect(self.handleError)
         
         
-        app.setStyleSheet(qdarkgraystyle.load_stylesheet())
+        # app.setStyleSheet(qdarkgraystyle.load_stylesheet())
         # Force the style to be the same on all OSs:
-        # app.setStyle("Fusion")
+        app.setStyle("Fusion")
 
-        # # Now use a palette to switch to dark colors:
-        # palette = QPalette()
-        # palette.setColor(QPalette.Window, QColor(53, 53, 53))
-        # palette.setColor(QPalette.WindowText, Qt.white)
-        # palette.setColor(QPalette.Base, QColor(25, 25, 25))
-        # palette.setColor(QPalette.AlternateBase, QColor(53, 53, 53))
-        # palette.setColor(QPalette.ToolTipBase, Qt.white)
-        # palette.setColor(QPalette.ToolTipText, Qt.white)
-        # palette.setColor(QPalette.Text, Qt.white)
-        # palette.setColor(QPalette.Button, QColor(53, 53, 53))
-        # palette.setColor(QPalette.ButtonText, Qt.white)
-        # palette.setColor(QPalette.BrightText, Qt.red)
-        # palette.setColor(QPalette.Link, QColor(42, 130, 218))
-        # palette.setColor(QPalette.Highlight, QColor(42, 130, 218))
-        # palette.setColor(QPalette.HighlightedText, Qt.black)
-        # app.setPalette(palette)
+        # Now use a palette to switch to dark colors:
+        palette = QPalette()
+        palette.setColor(QPalette.Window, QColor(53, 53, 53))
+        palette.setColor(QPalette.WindowText, Qt.white)
+        palette.setColor(QPalette.Base, QColor(25, 25, 25))
+        palette.setColor(QPalette.AlternateBase, QColor(53, 53, 53))
+        palette.setColor(QPalette.ToolTipBase, Qt.white)
+        palette.setColor(QPalette.ToolTipText, Qt.white)
+        palette.setColor(QPalette.Text, Qt.white)
+        palette.setColor(QPalette.Button, QColor(53, 53, 53))
+        palette.setColor(QPalette.ButtonText, Qt.white)
+        palette.setColor(QPalette.BrightText, Qt.red)
+        palette.setColor(QPalette.Link, QColor(42, 130, 218))
+        palette.setColor(QPalette.Highlight, QColor(42, 130, 218))
+        palette.setColor(QPalette.HighlightedText, Qt.black)
+        app.setPalette(palette)
 
     def openFile(self):
         fileName, _ = QFileDialog.getOpenFileName(self, "Open Movie",
                 QDir.homePath() + "/Videos", "Media (*.webm *.mp4 *.ts *.avi *.mpeg *.mpg *.mkv *.VOB *.m4v *.3gp *.mp3 *.m4a *.wav *.ogg *.flac *.m3u *.m3u8)")
-
+        if fileName.endswith('.mp4'):
+            reader = imageio.get_reader(fileName)
+            fps = reader.get_meta_data()['fps']
+            fileName = fileName.replace('.mp4', '.avi')
+            writer = imageio.get_writer(fileName, fps=fps)
+            for im in reader:
+                writer.append_data(im[:, :, :])
+            writer.close()
         if fileName != '':
             self.mediaPlayer.setMedia(
                     QMediaContent(QUrl.fromLocalFile(fileName)))
             self.playButton.setEnabled(True)
-
+        self.play()
+    def downloadYoutube(self):
+        directory = 'C:/Users/{}/Videos/J-Media Player Downloads'.format(username)
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        url, okPressed = QInputDialog.getText(self, "Youtube Download Video","URL for the Youtube video:", QLineEdit.Normal, "")
+        if okPressed and url != '':
+            ydl_opts = {}
+            with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([url])
+            # yt = YouTube(url)
+            # yt = yt.streams.filter(progressive=True, file_extension='mp4').order_by('resolution').desc().first()
+            # if not os.path.exists(directory):
+            #     os.makedirs(directory)
+            # yt.download(directory)
     def exitCall(self):
         sys.exit(app.exec_())
 
